@@ -1,0 +1,26 @@
+{
+  "spec_version": "1.0",
+  "decision_id": "HGL-HOP-RB-002",
+  "inputs": {
+    "glyphs": ["HGL-CORE-001", "HGL-CORE-012", "HGL-CORE-007"],
+    "evidence": [
+      { "event": "auto_mode_entered", "ts": "2025-10-13T14:26:00Z" },
+      { "metric": "idle_loop_ok", "value": true }
+    ],
+    "rules_applied": ["QSR-Temporal-Equilibrium", "Consent-Before-Step"]
+  },
+  "outcome": {
+    "action": "VALIDATE",
+    "next_state": "bounded_idle",
+    "metadata": { "window_min": 20 }
+  },
+  "rationale": "Idle context detected; apply VALIDATE under Temporal anchor before resuming.",
+  "confidence": 0.86,
+  "ethics_check": { "passed": true, "notes": "Preserves human control and timing." },
+  "timestamps": { "ts": "2025-10-13T14:31:30Z" },
+  "audit": {
+    "signer": "Helix Governance Bot",
+    "audit_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "ledger_seq": 314
+  }
+}
