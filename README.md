@@ -1,6 +1,8 @@
 # HELIX GLYPH LANGUAGE (HGL)
 
 ## Unified Runbook — v1.2-beta-K (Merged, Khronos-Enhanced)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green)](./LICENSE)
+[![REUSE status](https://api.reuse.software/badge/github/helixprojectai-code/HELIX-GLYPH-LANGUAGE-HGL-)](https://api.reuse.software/info/github/helixprojectai-code/HELIX-GLYPH-LANGUAGE-HGL-)
 
 **Document ID:** HGL-RUNBOOK-UNIFIED-v1.2-BETA-K  
 **Spec Version:** 1.2-beta-K (Helix Core Ethos-aligned extensions)  
