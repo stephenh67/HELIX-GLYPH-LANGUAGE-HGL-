@@ -3,25 +3,47 @@ name: validate
 on:
   push:
     branches: [ main ]
+    paths: [ "schema/**", "examples/**", ".github/workflows/**", "README.md" ]
   pull_request:
     branches: [ main ]
+    paths: [ "schema/**", "examples/**", ".github/workflows/**", "README.md" ]
 
 jobs:
   schema:
-    name: AJV schema checks
+    name: AJV schema checks (Draft-07, verbose)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+      - name: Tooling versions
+        run: |
+          node --version
+          npm --version
 
       - name: Install ajv-cli
         run: npm i -g ajv-cli@5
 
-      - name: Validate examples
+      - name: Show files
         run: |
-          ajv validate -s schema/hgl-glyph-spec-1.0.json      -d examples/glyph-doc-hello.json
-          ajv validate -s schema/hgl-error-taxonomy-1.0.json  -d examples/error-emit-HGL-ERR-0103.json
-          ajv validate -s schema/hgl-hop-decision-1.0.json    -d examples/hop-decision.json
+          echo "::group::schema/"
+          ls -la schema
+          echo "::endgroup::"
+          echo "::group::examples/"
+          ls -la examples
+          echo "::endgroup::"
+
+      - name: Compile schemas (smoke test)
+        run: |
+          ajv compile -s schema/hgl-glyph-spec-1.0.json --spec=draft7
+          ajv compile -s schema/hgl-error-taxonomy-1.0.json --spec=draft7
+          ajv compile -s schema/hgl-hop-decision-1.0.json --spec=draft7
+
+      - name: Validate examples (full error text)
+        run: |
+          set -x
+          ajv validate --spec=draft7 --all-errors --errors=text \
+            -s schema/hgl-glyph-spec-1.0.json      -d examples/glyph-doc-hello.json
+          ajv validate --spec=draft7 --all-errors --errors=text \
+            -s schema/hgl-error-taxonomy-1.0.json  -d examples/error-emit-HGL-ERR-0103.json
+          ajv validate --spec=draft7 --all-errors --errors=text \
+            -s schema/hgl-hop-decision-1.0.json    -d examples/hop-decision.json
