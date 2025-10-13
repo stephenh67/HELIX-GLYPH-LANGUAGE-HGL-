@@ -1,0 +1,17 @@
+{
+  "spec_version": "1.0",
+  "glyph_id": "HGL-CORE-001",
+  "tier": 0,
+  "name": "Investigation",
+  "alias": "INVESTIGATE",
+  "semantics": "Analyze/inspect evidence and patterns",
+  "emoji": "🔍",
+  "tags": ["core", "reasoning", "analysis"],
+  "visual": { "type": "unicode" },
+  "audit": {
+    "ts": "2025-10-13T14:30:00Z",
+    "signer": "Helix AI Innovations Inc.",
+    "audit_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ledger_seq": 1
+  }
+}
