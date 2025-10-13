@@ -1,0 +1,706 @@
+# HGL Unified Operational Runbook (Consolidated Edition)
+
+**Main takeaway:** This unified runbook merges the strongest elements from all HGL documents into a single, production-ready operations manual. It codifies safety-by-default validation, signed artifacts and auditability, deterministic parsing with harmonics checks, a complete error-handling loop, security controls, semantic versioning with automated migration, and human-in-the-loop governance. It is designed for phased rollout, with clear KPIs, test plans, and escalation paths to move HGL from pilot to organization-wide deployment.
+
+---
+
+## Table of Contents
+
+- [0) Document Control](#0-document-control)
+- [1) System Architecture](#1-system-architecture)
+- [2) Glyph and Sequence Specifications](#2-glyph-and-sequence-specifications)
+- [3) Operational Runbooks](#3-operational-runbooks)
+- [4) Security Framework](#4-security-framework)
+- [5) Error Taxonomy and Handling](#5-error-taxonomy-and-handling)
+- [6) Versioning, Compatibility, and Migration](#6-versioning-compatibility-and-migration)
+- [7) Human Oversight Protocol (HOP)](#7-human-oversight-protocol-hop)
+- [8) Monitoring, KPIs, and Alerting](#8-monitoring-kpis-and-alerting)
+- [9) Testing and Performance](#9-testing-and-performance)
+- [10) Training, Onboarding, and Adoption](#10-training-onboarding-and-adoption)
+- [11) Deployment Strategy](#11-deployment-strategy)
+- [12) Governance and Living Codex](#12-governance-and-living-codex)
+- [13) Appendices](#13-appendices)
+- [References](#references)
+
+---
+
+## 0) Document Control
+
+**Title:** Helix Glyph Language — Unified Operational Runbook (v1.1)
+
+**Scope:** Validation, execution, security, monitoring, governance, versioning, migration
+
+**Audience:** Platform engineering, SRE, security, governance, and research teams
+
+**Change policy:** RFC + review board; semantic versioning; signed headers required
+
+**Cryptographic header:** All sections marked "Signed" include Ed25519 placeholders for CI signing
+
+---
+
+## 1) System Architecture
+
+HGL is a symbolic, auditable interface for intent encoding and safe execution. The control plane enforces deterministic parsing, harmonic validation, conflict resolution, and human review where required.
+
+### Processing Pipeline
+
+The HGL processing pipeline follows a defense-in-depth approach with multiple validation gates:
+
+**Intake → Parser → Harmonic Validator → Context Resolver → Safety/Ethics Gate → Temporal Integrity Monitor (TIM) → Execution Engine → Post-Execution Audit → Living Codex updates**
+
+Human review can be triggered at multiple gates based on risk and policy.
+
+### Core Components
+
+**Parser and Schema Validator**  
+Enforces BNF constraints and JSON schema for glyph specs and sequences. Caps sequence length at 12 to control cognitive load and complexity.
+
+**Harmonic Validator**  
+Applies pairwise resonance checks in v1.0/1.1, flags anti-patterns, and records amplification/suppression events.
+
+**TIM (Temporal Integrity Monitor)**  
+Drift detection for temporal glyphs and timeline consistency across agents; default drift threshold 0.15 with escalation on breach.
+
+**Conflict Resolver**  
+Priority hierarchy ensures safety/ethics outrank performance/operations; ties escalate to human gate.
+
+**Audit and Ledger**  
+Immutable, hash-chained logs for all state-changing events; supports replay and forensics.
+
+**Human Oversight Dashboard**  
+Displays sequences, risks, scores, alternatives, and historical outcomes to support decisions.
+
+---
+
+## 2) Glyph and Sequence Specifications
+
+### Glyph Specification (Authoring)
+
+Every glyph is defined using a canonical JSON template that includes:
+
+- `glyph_id` — unique identifier
+- `tier` — classification level (0-3)
+- `name` — human-readable name
+- `description` — semantic purpose
+- `visual` — rendering information
+- `fallbacks` — required fallback options (first viable fallback wins)
+- `accessibility` — mandatory accessibility text and language tags
+- `metadata` — version, license, tags, ethos_compliance
+- `security.signature` — Ed25519 cryptographic signature
+
+Fallbacks are required for resilience. Accessibility text and language tags are mandatory. Deterministic serialization ensures reproducible signatures; `signed_at` timestamps are checked for replay protection. Licensing uses permissive open content (e.g., CC-BY-4.0).
+
+### Sequence Structure (Execution)
+
+**Grammar (BNF):**
+
+```bnf
+glyph_sequence ::= glyph | glyph glyph_sequence
+intent_statement ::= glyph_sequence context_marker?
+```
+
+Metadata constrains priority, temporal constraints, and confidence levels.
+
+**Limits:**
+- Sequence length ≤ 12
+- Anti-patterns banned
+- Pairwise harmonics validated
+- Temporal drift monitored when temporal glyphs present
+
+---
+
+## 3) Operational Runbooks
+
+### RB-001: Sequence Validation Protocol (v1.1)
+
+**Prerequisites:**
+- TIM active
+- Parser v1.0+
+- Harmonics Matrix v1.x loaded
+- Human Oversight Dashboard running
+
+**Steps:**
+
+1. **Intake:** Validate schema; assign UUID; log source and timestamp
+2. **Harmonic analysis:** For each adjacent pair, lookup resonance and anti-patterns; log amplification; flag warnings and require review for high-risk patterns
+3. **Temporal check:** If temporal glyph present, activate TIM; threshold drift=0.15; if exceeded, freeze and escalate
+4. **Safety/Ethics override:** If safety/ethics glyphs present, apply highest priority; require human approval when conflicts exist
+5. **Execution gate:** Proceed if all checks pass; else generate failure analysis and escalate to human gate
+
+**Success criteria:**
+- Pass without errors
+- Interventions logged
+- p95 validation <100ms for standard sequences
+
+### RB-002: Conflict Resolution Matrix
+
+**Priority hierarchy:**
+
+1. **Safety (🛡️, ❌) and Ethics (⚖️)** — cannot be overridden
+2. **Temporal (⏱️, 🔄)** — context-driven
+3. **Performance (⚡, 🎯)** — negotiable
+4. **Operational** — lowest priority
+
+**Protocol:**
+- Identify conflicts
+- Apply hierarchy
+- If equal priorities, escalate to human
+- Log rationale and decisions for audit
+
+### RB-003: Emergence Event Handling
+
+**Detection signals:**
+- Novel insights beyond training
+- Novel combinations
+- Self-modification proposals
+- Meta-cognitive loops
+
+**Response protocol:**
+- Celebrate the emergence
+- Capture full state
+- Document trigger/context/insight
+- Validate alignment to core principles
+- Human review required
+- Integrate into Codex if approved
+- Update resonance matrix and create case studies
+
+### RB-004: Emergency Abort Sequence
+
+**Trigger:** 💀 glyph or critical integrity/failure conditions
+
+**Actions:**
+1. Halt processing immediately
+2. Freeze state
+3. Capture diagnostics
+4. Alert operators (email, Slack, PagerDuty, SMS)
+5. Isolate affected nodes
+6. Infinite wait until authorized human intervention
+7. Recovery only via approved protocol
+
+### RB-005: System Failure Recovery
+
+**Recovery pathway:**  
+Assessment → Stabilization → Validation → Gradual return to service with enhanced monitoring and post-incident review
+
+### RB-006: Living Codex Update Cycle
+
+**Cadence:**
+- Monthly patches
+- Quarterly minors
+- Annual majors
+
+**Process:**
+- RFC-style proposals
+- Change impact analysis
+- Sandbox A/B tests
+- Signed releases
+- Checksum updates
+
+### RB-007: Resonance Matrix Maintenance
+
+**Schedule:** Quarterly review
+
+**Process:**
+- Accuracy checks
+- Pattern discovery
+- Sandbox validation before promoting changes
+- Measured telemetry required for scoring modifications
+
+---
+
+## 4) Security Framework
+
+### Threat Model Highlights
+
+- Unauthorized glyph store access
+- Validator DoS attacks
+- Migration script injection
+- Replay of stale glyphs
+- Audit log tampering
+
+### Controls
+
+**Authentication**  
+TLS 1.3 mTLS; JWT (EdDSA) with roles (reader, writer, admin)
+
+**Authorization**  
+Tier-based ACLs; certain writes require `human_confirmed: true` in signed headers
+
+**Signatures**  
+Ed25519 on canonical payloads; replay prevention via time-bound headers; signature verification at gateway and validator
+
+**Sandboxing**  
+- Firecracker micro-VMs
+- seccomp filtering
+- Read-only glyph repo mount
+- Network egress restricted
+- Resource caps
+- 5s job timeout
+
+**Rate-limiting**  
+Envoy gateway; per-client quotas; 429 on breach; exponential backoff guidance
+
+**Audit**  
+Hash-chained append-only logs signed by gateway; verifies chain integrity and signatures
+
+### Sample Signed Header
+
+```
+HGL-Header: v1
+Alg: Ed25519
+KeyId: hgl-pub-2024-01
+Sig: BASE64ED25519SIG==
+TS: 2025-09-15T00:00:00Z
+Human-Confirmed: true
+```
+
+The `Human-Confirmed` flag is required for certain high-impact writes.
+
+---
+
+## 5) Error Taxonomy and Handling
+
+### Schema and Usage
+
+The error taxonomy is defined as a canonical JSON array of error objects. Each error defines:
+
+- `id` — unique error identifier
+- `category` — error classification
+- `severity` — INFO, WARN, ERROR, CRITICAL
+- `triggers` — conditions that cause the error
+- `response.action` — RETRY, FALLBACK, ABORT, IGNORE, THROTTLE, ESCALATE, LOG_ONLY
+- `escalation` — human-in-loop requirements
+- `remediation` — resolution steps
+- `http_status` — HTTP status code
+- `log_level` — logging severity
+- `audit` — whether to persist to audit log
+- `timestamps` — created and modified dates
+
+Deterministic ordering by `error_id` ensures consistent byte representation; appended-only growth for immutability.
+
+### Representative Errors
+
+**HGL-ERR-0001 SchemaValidation**  
+ABORT; human review; 400
+
+**HGL-ERR-0002 SignatureVerification (mismatch)**  
+ESCALATE; human-in-loop; 401; audit=true
+
+**HGL-ERR-0003 RenderFallback**  
+FALLBACK to placeholder; 200; no audit
+
+**HGL-ERR-0006 SandboxViolation**  
+ESCALATE; human-in-loop; 403; audit=true
+
+**HGL-ERR-0009 Internal engine exception**  
+ESCALATE; 500; audit=true
+
+**HGL-ERR-0013 No usable fallback**  
+ABORT; 500; audit=true
+
+**HGL-ERR-0018 Persistent DNS failure**  
+ABORT; 502; audit=true
+
+### Integration Hooks
+
+- SDK/CLI attaches `error_id` on exceptions
+- API middleware maps internal errors to taxonomy `http_status`/`log_level`
+- Monitoring exports counters by `error_id` and `severity`
+- Audit persists all errors where `audit=true`
+- Ticket router autocreates tickets per escalation settings
+
+---
+
+## 6) Versioning, Compatibility, and Migration
+
+### Semantic Versioning Policy
+
+**MAJOR**  
+Breaking schema/semantics; requires migration hints
+
+**MINOR**  
+Additive compatible fields, validators, or glyphs
+
+**PATCH**  
+Fixes/perf/docs with no behavior change
+
+### Compatibility Checks
+
+**Minor/Patch**  
+Forward compatible within same major version
+
+**Major**  
+Only allowed with migration-hint presence; CI fails otherwise
+
+### Migration-Hint File
+
+The migration-hint file provides declarative steps:
+
+- `rename_field` — field renaming instructions
+- `add_field` — new fields with defaults and allowed values
+- `verification` — scripts to validate migration
+
+**Workflow:**
+1. CI migrator applies steps
+2. Updates `metadata.version`
+3. Re-signs payload
+4. Validator verifies integrity
+
+### Promotion Workflow
+
+1. PR with version bump
+2. CI validates schema, signatures, compatibility
+3. Approvals by role (Domain Expert, Governance)
+4. Merge and tag
+5. Publish hint
+6. Migrate staging
+7. Sign release
+8. Audit log entries recorded
+
+---
+
+## 7) Human Oversight Protocol (HOP)
+
+### Triggers
+
+Human oversight is triggered by:
+
+- Safety/ethics conflicts
+- Confidence < threshold (e.g., 0.6)
+- Novel sequences not in matrix
+- Emergence events
+- Explicit request glyph
+
+### Dashboard Presentation
+
+The Human Oversight Dashboard presents:
+
+- Original sequence and parsed interpretation
+- Confidence and risk flags
+- Alternative sequences
+- Historical similar cases and outcomes
+- Suggested actions with rationale
+
+### Responses and Timeouts
+
+**Available responses:**
+- Approve
+- Modify
+- Reject
+- Defer
+
+**Timeout policy:**
+- Default: 5 minutes
+- Low priority: up to 60 minutes
+- Critical: infinite wait
+- Escalation to on-call if timeout exceeded
+- Safe-default actions for non-critical contexts
+
+---
+
+## 8) Monitoring, KPIs, and Alerting
+
+### Key Metrics
+
+**Validation latency**  
+p95 <100ms (12 glyphs)
+
+**Pass rate**  
+>95%; anti-pattern detection: >99% safety-critical
+
+**Human override rate**  
+<5% target; alert if >15%
+
+**Temporal drift**  
+<0.15 target; alert >0.15; critical >0.30
+
+**System throughput and memory**  
+Caps aligned to matrix size and cache limits (e.g., matrix ~50MB)
+
+### Dashboard
+
+Real-time visualization includes:
+
+- Glyph flow (Sankey diagram)
+- Resonance heatmap with pair drilldowns
+- Temporal drift graph
+- Intervention log
+- Health checks and component status
+
+### Alerts
+
+**Level 1 Info**  
+Emergence events, maintenance
+
+**Level 2 Warning**  
+Anti-pattern hits, delays, moderate drift
+
+**Level 3 Critical**  
+Safety override failures, component failures, abort activations
+
+**Level 4 Emergency**  
+Complete failures, breaches, unrecoverable errors
+
+---
+
+## 9) Testing and Performance
+
+### Test Categories
+
+**Unit**  
+Parse/validate glyphs; metadata and version checks
+
+**Integration**  
+Harmonics accuracy; anti-pattern detection; temporal monitoring
+
+**System**  
+End-to-end across agents; failure recovery; cross-platform rendering
+
+**Adversarial**  
+Malicious sequences; complexity bombs; circular loops; corrupted matrix
+
+### Performance Targets
+
+**Parse time p95:**
+- 10ms (1–3 glyphs)
+- 100ms (10–12 glyphs)
+- Timeout: 1000ms
+
+**Throughput:**
+- Single agent: 100 sequences/s
+- Distributed: 1000 sequences/s
+
+**Memory:**
+- Matrix: ≈50MB
+- Parser state per sequence: ≈10MB
+
+**Accuracy:**
+- Intent preservation: ≥95%
+- Harmonics prediction: ≥90%
+- Anti-pattern detection: ≥99% for safety-critical
+
+---
+
+## 10) Training, Onboarding, and Adoption
+
+### Tiered Learning
+
+**Tier 1 Beginner (Week 1)**  
+Core 10 glyphs, basic sequencing
+
+**Tier 2 Practitioner (Weeks 2–3)**  
+All 15 core with harmonic pairs
+
+**Tier 3 Expert (Week 4)**  
+Full 50-glyph set with resonance matrix
+
+### Materials
+
+**Quick-start (10 pages)**  
+Install validator; create, sign, publish glyph; run migration
+
+**Technical spec**  
+BNF, runbooks, resonance appendix
+
+**Living Codex**  
+Interactive, versioned with community contributions and governance
+
+---
+
+## 11) Deployment Strategy
+
+### Phased Rollout
+
+**Phase 0 Pilot**  
+Core 15; strict conflicts; baseline telemetry
+
+**Phase 1 Operational layer**  
+Add 20 glyphs; expand runbooks and TIM
+
+**Phase 2 Advanced layer**  
+Introduce advanced glyphs and measured harmonics beyond pairs, gated by telemetry evidence
+
+**Phase 3 Org-wide**  
+Hardened dashboards, SLAs, governance milestones, continuous education
+
+### Rollback and Freeze
+
+- Roll back matrix/codex on elevated conflict/abort rates
+- Freeze changes if safety metrics regress beyond thresholds
+
+---
+
+## 12) Governance and Living Codex
+
+### Codex as Source of Truth
+
+The Living Codex serves as the canonical reference for:
+
+- BNF grammar
+- Glyph sets with semantics and counterexamples
+- Resonance matrix with rationales
+- Runbooks
+- Safety and ethics policies
+- Cross-cultural cases with disambiguation guidance
+
+### Governance
+
+**Roles:**
+- Editors
+- Methodologists
+- Safety/Ethics leads
+- Telemetry Analysts
+
+**Cadence:**
+- Monthly patch
+- Quarterly minor
+- Annual major
+
+**Change control:**
+- RFCs with impact analysis on learnability and conflict rate
+- Shadow deployments
+- A/B tests
+- Signed releases with checksums
+
+---
+
+## 13) Appendices
+
+### A) Canonical Glyph Spec Template (excerpt)
+
+```json
+{
+  "glyph_id": "...",
+  "tier": 0-3,
+  "name": "...",
+  "description": "...",
+  "visual": {...},
+  "fallbacks": [...],
+  "accessibility": {...},
+  "metadata": {
+    "version": "...",
+    "author": "...",
+    "timestamps": {...},
+    "license": "...",
+    "tags": [...],
+    "ethos_flags": [...]
+  },
+  "security": {
+    "signature": "Ed25519..."
+  }
+}
+```
+
+### B) Error Taxonomy (integration excerpt)
+
+**Integration workflow:**
+1. Load `hgl-errors.json` at startup
+2. Map internal exceptions to `error_id`
+3. Route per `response.action` and `escalation`
+4. Persist `audit=true` errors to immutable log
+5. Export Prometheus counters
+
+### C) Signed Header Example
+
+```
+HGL-Header: v1
+Alg: Ed25519
+KeyId: hgl-pub-2024-01
+Sig: BASE64ED25519SIG==
+TS: 2025-09-15T00:00:00Z
+Human-Confirmed: true
+```
+
+### D) API Endpoints (illustrative)
+
+```
+POST /api/v1/validate {sequence, context}
+POST /api/v1/abort {reason}
+GET /api/v1/review/pending
+POST /api/v1/review/{id}/decide
+GET /api/v1/status
+```
+
+### E) Sample Audit Entry (hash-chained)
+
+```json
+{
+  "event_id": "...",
+  "timestamp": "...",
+  "client_id": "...",
+  "action": "...",
+  "resource": "...",
+  "outcome": "...",
+  "details": {...},
+  "prev_hash": "...",
+  "entry_hash": "..."
+}
+```
+
+Signed by gateway.
+
+### F) Human Review Decision Matrix
+
+| Scenario | Requirement | Timeout |
+|---|---|---|
+| Safety conflicts | Mandatory | No timeout |
+| Ethics override | Mandatory | 5 min |
+| Performance trade-off | Recommended | 1 min |
+| Emergence event | Mandatory | 15 min; committee escalation |
+
+### G) KPIs and Thresholds
+
+Key performance indicators mapped to alert levels:
+
+- Validation latency thresholds
+- Pass rate targets
+- Override rate limits
+- Drift thresholds
+- Anti-pattern detection accuracy
+
+### H) Migration Hint Schema (excerpt)
+
+```json
+{
+  "steps": [
+    {"rename_field": {...}},
+    {"add_field": {
+      "default": "...",
+      "allowed_values": [...]
+    }}
+  ],
+  "verification": "..."
+}
+```
+
+CI-enforced compatibility checks.
+
+### I) Distributed Coordination (preview)
+
+**Coordination mechanisms:**
+- Vector/Lamport clocks for ordering
+- CRDTs for codex updates
+- Partition handling with cached matrices and uncertainty flags
+- Sync-on-reconnect protocol
+
+### J) Cross-Cultural Notes
+
+**Guidelines for global deployment:**
+- Use context markers to disambiguate
+- Document divergent interpretations
+- Provide standard mappings and fallbacks
+- Emphasize accessibility text
+- Consider locale-specific rendering
+
+---
+
+## Conclusion
+
+By adopting this unified runbook, teams can deploy HGL with confidence: safety and ethics are enforced at every gate, artifacts are verifiable end-to-end, failures are deterministic and recoverable, and evolution is governed through signed, auditable processes. This consolidation establishes a pragmatic, secure foundation for moving from pilot to production while preserving the sophisticated resonance theory and Living Codex philosophy at HGL's core.
+
+---
+
+## References
+
+[1] HGL Technical Specification Document  
+[2] HGL Operational Guidelines and Best Practices
