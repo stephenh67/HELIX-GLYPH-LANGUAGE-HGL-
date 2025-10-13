@@ -1,7 +1,7 @@
 # HELIX GLYPH LANGUAGE (HGL)
 
 ## Unified Runbook — v1.2-beta-K CURRENT (Merged, Khronos-Enhanced)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green)](./LICENSE)
+
 ** SPDX-License-Identifier: Apache-2.0 SPDX-FileCopyrightText: 2025 Helix AI Innovations Inc.
 
 > **Spec**: HGL v1.2-beta-K • **Status**: Beta • **License**: Apache-2.0  
