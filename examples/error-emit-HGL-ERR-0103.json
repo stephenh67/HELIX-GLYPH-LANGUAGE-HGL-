@@ -1,0 +1,22 @@
+{
+  "spec_version": "1.0",
+  "error_id": "HGL-ERR-0103",
+  "name": "TemporalDrift",
+  "category": "Temporal",
+  "severity": "medium",
+  "message": "Observed self-reported window exceeded declared temporal anchor.",
+  "remediation": [
+    "Re-align temporal anchor to current UTC.",
+    "Reduce background interval or prompt for confirmation."
+  ],
+  "context": {
+    "anchor_declared_min": 20,
+    "elapsed_min": 24
+  },
+  "audit": {
+    "ts": "2025-10-13T14:31:00Z",
+    "signer": "Helix TTD Probe",
+    "audit_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "ledger_seq": 42
+  }
+}
