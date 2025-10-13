@@ -1,6 +1,6 @@
 # HELIX GLYPH LANGUAGE (HGL)
 
-## Unified Runbook — v1.2-beta-K (Merged, Khronos-Enhanced)
+## Unified Runbook — v1.2-beta-K CURRENT (Merged, Khronos-Enhanced)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green)](./LICENSE)
 
 **Document ID:** HGL-RUNBOOK-UNIFIED-v1.2-BETA-K  
