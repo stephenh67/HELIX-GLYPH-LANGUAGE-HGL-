@@ -3,6 +3,8 @@
 ## Unified Runbook — v1.2-beta-K CURRENT (Merged, Khronos-Enhanced)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green)](./LICENSE)
 ** SPDX-License-Identifier: Apache-2.0 SPDX-FileCopyrightText: 2025 Helix AI Innovations Inc.
+[![CI](https://github.com/helixprojectai-code/HELIX-GLYPH-LANGUAGE-HGL-/actions/workflows/validate.yml/badge.svg)](https://github.com/helixprojectai-code/HELIX-GLYPH-LANGUAGE-HGL-/actions/workflows/validate.yml)
+
 
 
 **Document ID:** HGL-RUNBOOK-UNIFIED-v1.2-BETA-K  
