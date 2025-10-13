@@ -1,0 +1,62 @@
+{
+  "$id": "https://helixprojectai.com/schemas/hgl-error-taxonomy-1.0.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Helix Glyph Language (HGL) — Error Taxonomy v1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [ "error_id", "name", "category", "severity", "message" ],
+  "properties": {
+    "spec_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+(?:\\.\\d+)?$"
+    },
+    "error_id": {
+      "type": "string",
+      "pattern": "^HGL-ERR-\\d{4}$",
+      "description": "Canonical error ID (e.g., HGL-ERR-0103)"
+    },
+    "name": { "type": "string", "minLength": 1 },
+    "category": {
+      "type": "string",
+      "enum": [
+        "Temporal",
+        "Syntax",
+        "Security",
+        "Ethics",
+        "Custody",
+        "Integration",
+        "Validation",
+        "Other"
+      ]
+    },
+    "severity": {
+      "type": "string",
+      "enum": [ "info", "low", "medium", "high", "critical" ]
+    },
+    "message": { "type": "string", "minLength": 1 },
+    "remediation": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "context": {
+      "type": "object",
+      "description": "Optional structured context (free-form)"
+    },
+    "audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [ "ts", "signer" ],
+      "properties": {
+        "ts": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+        },
+        "signer": { "type": "string", "minLength": 1 },
+        "audit_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "ledger_seq": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "x_ext": { "type": "object" }
+  }
+}
