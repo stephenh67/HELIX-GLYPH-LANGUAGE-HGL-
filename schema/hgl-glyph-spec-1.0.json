@@ -1,0 +1,96 @@
+{
+  "$id": "https://helixprojectai.com/schemas/hgl-glyph-spec-1.0.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Helix Glyph Language (HGL) — Glyph Spec v1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "glyph_id",
+    "tier",
+    "name",
+    "alias",
+    "semantics",
+    "emoji"
+  ],
+  "properties": {
+    "spec_version": {
+      "type": "string",
+      "description": "Semantic version of this spec the instance targets, e.g., 1.0",
+      "pattern": "^\\d+\\.\\d+(?:\\.\\d+)?$"
+    },
+    "glyph_id": {
+      "type": "string",
+      "description": "Canonical glyph identifier",
+      "pattern": "^HGL-(?:CORE|T\\d|XPR)-\\d{3}$"
+    },
+    "tier": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3,
+      "description": "Tier 0–3 (0 = core, 3 = experimental)"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Short, human-readable name"
+    },
+    "alias": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Z0-9_\\-]+$",
+      "description": "ASCII alias / prompt keyword (e.g., INVESTIGATE)"
+    },
+    "semantics": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One-line semantic intent"
+    },
+    "emoji": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Primary emoji/glyph used as the visual mnemonic"
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "description": "Optional topic tags"
+    },
+    "visual": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [ "type" ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [ "unicode", "svg", "png" ]
+        },
+        "data": {
+          "type": "string",
+          "description": "Inline SVG text or base64 PNG when applicable"
+        }
+      },
+      "description": "Optional explicit visual payload"
+    },
+    "audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [ "ts", "signer" ],
+      "properties": {
+        "ts": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "description": "UTC timestamp (RFC3339, Zulu)"
+        },
+        "signer": { "type": "string", "minLength": 1 },
+        "audit_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "ledger_seq": { "type": "integer", "minimum": 0 }
+      },
+      "description": "TTD audit fields"
+    },
+    "x_ext": {
+      "type": "object",
+      "description": "Forward-compatible extension namespace"
+    }
+  }
+}
