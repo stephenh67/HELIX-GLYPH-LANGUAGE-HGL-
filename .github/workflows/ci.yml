@@ -1,0 +1,56 @@
+name: ci
+on:
+  push:
+  pull_request:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+
+      - name: Install deps (jq, jsonschema, shellcheck)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq shellcheck
+          python -m pip install --upgrade pip
+          python -m pip install jsonschema
+
+      - name: Lint bash
+        run: shellcheck tools/verify_and_eval.sh
+
+      - name: Check EBNF exists
+        run: test -s spec/grammar.ebnf
+
+      - name: Validate example sentence against schema
+        run: |
+          python - <<'PY'
+          import json, sys, jsonschema
+          s=json.load(open('schema/COOP_SENTENCE.schema.json'))
+          d=json.load(open('examples/001_consent_access.compiled.json'))
+          jsonschema.validate(d, s)
+          print("COOP_SENTENCE OK")
+          PY
+
+      - name: Build sample SYNERGY_PROOF from events
+        env:
+          MODEL: "CI"
+          ROUTE: "ci/run"
+          RUN_ID: "ci-$(date +%s)"
+        run: |
+          jq -s -f tools/synergy_reduce.jq examples/events.sample.jsonl > proof.json
+          jq -e '.envelope_type=="SYNERGY_PROOF"' proof.json
+
+      - name: Canonicalize + hash artifacts
+        run: |
+          jq -S . examples/001_consent_access.compiled.json > sentence.canon.json
+          jq -S . proof.json > proof.canon.json
+          sha256sum sentence.canon.json proof.canon.json
+
+      - name: Dry-run verifier (no keys -> signatures: unknown)
+        run: |
+          chmod +x tools/verify_and_eval.sh
+          tools/verify_and_eval.sh examples/001_consent_access.compiled.json proof.json /dev/null ledger-root | jq .
