@@ -1,21 +1,25 @@
 name: ci
+
 on:
   push:
   pull_request:
+
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v5
-        with: { python-version: "3.11" }
+        with:
+          python-version: "3.11"
 
-      - name: Install deps (jq, jsonschema, shellcheck)
+      - name: Install deps (jq, shellcheck, bc) + Python libs
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq shellcheck
+          sudo apt-get install -y jq shellcheck bc
           python -m pip install --upgrade pip
           python -m pip install jsonschema
 
@@ -27,20 +31,18 @@ jobs:
 
       - name: Validate example sentence against schema
         run: |
-          python - <<'PY'
-          import json, sys, jsonschema
-          s=json.load(open('schema/COOP_SENTENCE.schema.json'))
-          d=json.load(open('examples/001_consent_access.compiled.json'))
-          jsonschema.validate(d, s)
+          python <<'EOF'
+          import json, jsonschema
+          with open('schema/COOP_SENTENCE.schema.json') as f: schema=json.load(f)
+          with open('examples/001_consent_access.compiled.json') as f: data=json.load(f)
+          jsonschema.validate(data, schema)
           print("COOP_SENTENCE OK")
-          PY
+          EOF
 
       - name: Build sample SYNERGY_PROOF from events
-        env:
-          MODEL: "CI"
-          ROUTE: "ci/run"
-          RUN_ID: "ci-$(date +%s)"
         run: |
+          RUN_ID="ci-$(date +%s)"
+          MODEL="CI" ROUTE="ci/run" RUN_ID="$RUN_ID" \
           jq -s -f tools/synergy_reduce.jq examples/events.sample.jsonl > proof.json
           jq -e '.envelope_type=="SYNERGY_PROOF"' proof.json
 
@@ -53,4 +55,9 @@ jobs:
       - name: Dry-run verifier (no keys -> signatures: unknown)
         run: |
           chmod +x tools/verify_and_eval.sh
-          tools/verify_and_eval.sh examples/001_consent_access.compiled.json proof.json /dev/null ledger-root | jq .
+          touch EMPTY_ALLOWED_SIGNERS
+          tools/verify_and_eval.sh \
+            examples/001_consent_access.compiled.json \
+            proof.json \
+            ./EMPTY_ALLOWED_SIGNERS \
+            ledger-root | jq .
