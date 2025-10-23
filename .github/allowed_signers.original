@@ -1,0 +1,247 @@
+# HGL Allowed Signers Registry
+# SPDX-License-Identifier: Apache-2.0
+#
+# This file contains SSH public keys authorized to sign HGL release artifacts.
+# Uses OpenSSH allowed_signers format for signature verification.
+#
+# Format:
+#   <principal> namespaces="<ns>" valid-after="<YYYYMMDD>" valid-before="<YYYYMMDD>" <key-type> <key-data> <comment>
+#
+# Fields:
+#   principal     - Email or identifier for key owner (e.g., release@example.com)
+#   namespaces    - Allowed signature namespaces (use "file" for file signatures)
+#   valid-after   - Key validity start date in YYYYMMDD format
+#   valid-before  - Key validity end date in YYYYMMDD format
+#   key-type      - SSH key algorithm (ssh-ed25519, ssh-rsa, ecdsa-sha2-nistp256)
+#   key-data      - Base64-encoded public key
+#   comment       - Optional comment (not parsed, for documentation only)
+#
+# Verification:
+#   ssh-keygen -Y verify -f .github/allowed_signers -I <principal> -n file -s <signature> < <file>
+#
+# Key Rotation Schedule:
+#   - Primary keys: Rotate annually
+#   - Emergency keys: Rotate after use or bi-annually
+#   - Automation keys: Rotate quarterly
+#   - Overlap period: 2-3 months between old and new keys
+#
+# ⚠️  CRITICAL SECURITY NOTICE ⚠️
+# The keys below are PLACEHOLDERS and MUST be replaced with your actual production keys!
+# These example keys should NEVER be used in production as their private keys are not secure.
+#
+# To generate a new ED25519 key:
+#   ssh-keygen -t ed25519 -f ~/.ssh/hgl_release_key -C "release@helixprojectai.com"
+#
+# To add your public key here:
+#   1. Generate key (see above)
+#   2. Copy the public key: cat ~/.ssh/hgl_release_key.pub
+#   3. Replace placeholder entry below with your actual public key
+#   4. Set appropriate valid-after and valid-before dates
+#   5. Commit and push this file
+#
+# ============================================================================
+# PRODUCTION KEYS - Replace these with your actual keys!
+# ============================================================================
+
+# Primary Release Signing Key (2025)
+# Owner: Release Engineering Team
+# Purpose: Sign official releases
+# Rotation: January 2026
+release@helixprojectai.com namespaces="file" valid-after="20250101" valid-before="20260101" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK7RWbbNb8kHfKJxaY2d9zJQvFzqYMFfJz3FeKQDXYz3 HGL Release Key 2025 (PLACEHOLDER - REPLACE ME!)
+
+# Backup Release Signing Key (2025)
+# Owner: Lead Developer
+# Purpose: Emergency releases when primary key unavailable
+# Rotation: January 2026
+backup-release@helixprojectai.com namespaces="file" valid-after="20250101" valid-before="20260101" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOW0kU3k9xZqVPE9vQg7/L+Nz8wJYcE0pCXRqYe5l7k1 HGL Backup Release Key 2025 (PLACEHOLDER - REPLACE ME!)
+
+# CI/CD Automation Key (Q4 2025)
+# Owner: GitHub Actions
+# Purpose: Automated signing in CI/CD pipelines
+# Rotation: January 2026
+ci-automation@helixprojectai.com namespaces="file" valid-after="20251001" valid-before="20260101" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPnc0/xZGZQG2WxJh6nW0SJy1TqKVKk8mFWvJBhHcUYo HGL CI/CD Automation Key Q4 2025 (PLACEHOLDER - REPLACE ME!)
+
+# ============================================================================
+# RETIRED KEYS - Keep for historical verification
+# ============================================================================
+
+# Primary Release Signing Key (2024) - EXPIRED
+# Owner: Release Engineering Team
+# Status: Retired January 1, 2025
+# Purpose: Verify old releases signed in 2024
+release@helixprojectai.com namespaces="file" valid-after="20240101" valid-before="20250101" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBqMd6v8kNgFjZhBJKzNqLWKBVqXVzLPE7GWQn8xF3dh HGL Release Key 2024 (RETIRED - PLACEHOLDER)
+
+# ============================================================================
+# KEY ROTATION HISTORY
+# ============================================================================
+#
+# 2025-01-01: Rotated primary release key (2024 -> 2025)
+# 2025-01-01: Rotated backup release key (2024 -> 2025)
+# 2025-10-01: Added CI/CD automation key (Q4 2025)
+#
+# ============================================================================
+# INSTRUCTIONS FOR ADDING NEW KEYS
+# ============================================================================
+#
+# When rotating keys:
+#
+# 1. Generate new key pair:
+#    ssh-keygen -t ed25519 -f ~/.ssh/hgl_release_key_2026 -C "release@helixprojectai.com"
+#
+# 2. Add new key to this file with future valid-after date:
+#    release@helixprojectai.com namespaces="file" valid-after="20260101" valid-before="20270101" ssh-ed25519 AAAA... HGL Release Key 2026
+#
+# 3. Update old key's valid-before date to create overlap period:
+#    # Change this:
+#    release@helixprojectai.com ... valid-before="20260101" ...
+#    # To this:
+#    release@helixprojectai.com ... valid-before="20260301" ...
+#    # (Provides 2-month overlap)
+#
+# 4. After overlap period, move old key to RETIRED KEYS section
+#
+# 5. Document rotation in KEY ROTATION HISTORY section
+#
+# ============================================================================
+# VERIFICATION EXAMPLES
+# ============================================================================
+#
+# Verify a signed file:
+#   ssh-keygen -Y verify \
+#     -f .github/allowed_signers \
+#     -I release@helixprojectai.com \
+#     -n file \
+#     -s SHA256SUMS.txt.sig \
+#     < SHA256SUMS.txt
+#
+# List all keys for a principal:
+#   grep "^release@helixprojectai.com" .github/allowed_signers
+#
+# Find keys valid on a specific date:
+#   # Valid on 2025-06-15:
+#   awk -F' ' '$4 >= "20250615" && $5 <= "20250615"' .github/allowed_signers
+#
+# Check key fingerprint:
+#   ssh-keygen -lf <(grep "^release@" .github/allowed_signers | head -1 | awk '{print $NF " " $6}')
+#
+# ============================================================================
+# SECURITY BEST PRACTICES
+# ============================================================================
+#
+# ✅ DO:
+#   - Use ED25519 keys (stronger and faster than RSA)
+#   - Rotate keys annually
+#   - Set validity periods (use valid-after/valid-before)
+#   - Keep 2-3 month overlap during rotation
+#   - Store private keys securely (hardware tokens recommended)
+#   - Use separate keys for different purposes (release, backup, automation)
+#   - Keep retired keys for historical verification
+#   - Document all key changes in rotation history
+#
+# ❌ DON'T:
+#   - Share private keys between people or systems
+#   - Use the same key for multiple purposes
+#   - Set validity periods longer than 1 year
+#   - Remove retired keys (needed to verify old releases)
+#   - Store private keys in version control
+#   - Use weak passphrases
+#   - Skip key rotation
+#
+# ============================================================================
+# EMERGENCY KEY REVOCATION
+# ============================================================================
+#
+# If a private key is compromised:
+#
+# 1. Immediately set valid-before to current date:
+#    release@helixprojectai.com ... valid-before="20251023" ...
+#
+# 2. Generate new key immediately
+#
+# 3. Add new key with current valid-after date
+#
+# 4. Commit and push changes ASAP
+#
+# 5. Re-sign all recent releases with new key
+#
+# 6. Notify users via:
+#    - GitHub Security Advisory
+#    - Project website
+#    - Email list
+#
+# 7. Document incident in KEY ROTATION HISTORY
+#
+# ============================================================================
+# MULTI-SIGNER EXAMPLES
+# ============================================================================
+#
+# If you have multiple signers, add them all here:
+#
+# # Release Manager
+# alice@helixprojectai.com namespaces="file" valid-after="20250101" valid-before="20260101" ssh-ed25519 AAAA... Alice Release Key
+#
+# # Lead Developer  
+# bob@helixprojectai.com namespaces="file" valid-after="20250101" valid-before="20260101" ssh-ed25519 AAAA... Bob Release Key
+#
+# # Security Team
+# security@helixprojectai.com namespaces="file" valid-after="20250101" valid-before="20260101" ssh-ed25519 AAAA... Security Team Key
+#
+# ============================================================================
+# NAMESPACE USAGE
+# ============================================================================
+#
+# The "namespaces" field restricts what can be signed:
+#
+# - "file"     - Sign files (SHA256SUMS.txt, provenance.json, etc.)
+# - "git"      - Sign Git commits/tags
+# - "email"    - Sign emails
+#
+# For HGL releases, use "file" namespace exclusively.
+#
+# ============================================================================
+# COMPATIBILITY NOTES
+# ============================================================================
+#
+# OpenSSH Version Requirements:
+#   - Signing: OpenSSH 8.0+ (released 2019-04-17)
+#   - Verification: OpenSSH 8.0+
+#
+# Supported Key Types:
+#   - ssh-ed25519 (RECOMMENDED - fastest, most secure)
+#   - ecdsa-sha2-nistp256
+#   - ecdsa-sha2-nistp384
+#   - ecdsa-sha2-nistp521
+#   - ssh-rsa (minimum 2048 bits, not recommended)
+#
+# Not Supported:
+#   - ssh-dss (DSA keys - deprecated)
+#   - ssh-rsa with < 2048 bits (insecure)
+#
+# ============================================================================
+# REFERENCES
+# ============================================================================
+#
+# - OpenSSH allowed_signers format:
+#   https://man.openbsd.org/ssh-keygen#ALLOWED_SIGNERS
+#
+# - SSH signature format (RFC):
+#   https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.sshsig
+#
+# - ED25519 signature algorithm:
+#   https://ed25519.cr.yp.to/
+#
+# - HGL Documentation:
+#   https://github.com/helixprojectai/HGL/tree/main/docs
+#
+# ============================================================================
+# END OF FILE
+# ============================================================================
+
+# Helix Server Production Key (2025)
+# Owner: Helix Server (aiadmin@helix)
+# Purpose: Sign releases from production server
+# Rotation: October 2026
+release-helix@helixprojectai.com namespaces="file" valid-after="20251024" valid-before="20261024" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMZUhHXsFyWPogC4Vj89ZNQfDr0s+rG1EzeW8ePtJcch Helix Server Production Key 2025
+
+# Helix Production Server (2025)
+release@helixprojectai.com namespaces="file" valid-after="20251024" valid-before="20261024" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMZUhHXsFyWPogC4Vj89ZNQfDr0s+rG1EzeW8ePtJcch Helix Server Production Key 2025
