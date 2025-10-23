@@ -1,0 +1,330 @@
+name: Reproducibility Smoke Test
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to test (e.g., v1.2-beta.1)'
+        required: true
+        type: string
+
+jobs:
+  reproducibility-test:
+    name: Clean Room Build Verification
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        container:
+          - image: ubuntu:24.04
+            name: ubuntu-24.04
+          - image: alpine:3.19
+            name: alpine-3.19
+    
+    container:
+      image: ${{ matrix.container.image }}
+    
+    steps:
+      - name: Install base dependencies
+        run: |
+          if command -v apt-get &> /dev/null; then
+            # Ubuntu/Debian
+            apt-get update
+            apt-get install -y git curl ca-certificates build-essential python3 python3-pip jq openssh-client
+          elif command -v apk &> /dev/null; then
+            # Alpine
+            apk add --no-cache git curl ca-certificates build-base python3 py3-pip jq openssh-client bash
+          fi
+      
+      - name: Determine tag to test
+        id: determine-tag
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          
+          echo "Testing tag: $TAG"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+        shell: bash
+      
+      - name: Clone repository (clean)
+        run: |
+          echo "🔄 Cloning repository from scratch..."
+          git clone https://github.com/${{ github.repository }}.git /tmp/hgl-clean
+          cd /tmp/hgl-clean
+          
+          echo "📍 Checking out tag: ${{ steps.determine-tag.outputs.tag }}"
+          git checkout tags/${{ steps.determine-tag.outputs.tag }}
+          
+          echo "✅ Clean repository cloned"
+          git log -1 --oneline
+        shell: bash
+      
+      - name: Verify provenance manifest exists
+        id: check-provenance
+        run: |
+          cd /tmp/hgl-clean
+          
+          # Find provenance for this tag
+          TAG="${{ steps.determine-tag.outputs.tag }}"
+          RELEASE_DIR="releases/HGL-${TAG}"
+          
+          if [ -d "$RELEASE_DIR" ]; then
+            echo "found=true" >> $GITHUB_OUTPUT
+            echo "release_dir=$RELEASE_DIR" >> $GITHUB_OUTPUT
+            echo "✅ Found release directory: $RELEASE_DIR"
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+            echo "⚠️  No release directory found for $TAG"
+            echo "Provenance verification will be skipped"
+          fi
+        shell: bash
+      
+      - name: Install dependencies from provenance
+        if: steps.check-provenance.outputs.found == 'true'
+        run: |
+          cd /tmp/hgl-clean
+          
+          PROVENANCE="${{ steps.check-provenance.outputs.release_dir }}/manifests/provenance.json"
+          
+          if [ ! -f "$PROVENANCE" ]; then
+            echo "⚠️  Provenance file not found: $PROVENANCE"
+            exit 0
+          fi
+          
+          echo "📦 Installing dependencies from provenance..."
+          
+          # Extract dependency info
+          if command -v jq &> /dev/null; then
+            MODEL=$(jq -r '.model // "unknown"' "$PROVENANCE")
+            ROUTE=$(jq -r '.route // "unknown"' "$PROVENANCE")
+            
+            echo "  Model: $MODEL"
+            echo "  Route: $ROUTE"
+          fi
+          
+          # Install Python dependencies if requirements.txt exists
+          if [ -f "requirements.txt" ]; then
+            pip3 install -r requirements.txt
+            echo "✅ Python dependencies installed"
+          fi
+        shell: bash
+      
+      - name: Rebuild artifacts
+        if: steps.check-provenance.outputs.found == 'true'
+        run: |
+          cd /tmp/hgl-clean
+          
+          PROVENANCE="${{ steps.check-provenance.outputs.release_dir }}/manifests/provenance.json"
+          RELEASE_DIR="${{ steps.check-provenance.outputs.release_dir }}"
+          
+          echo "🔨 Rebuilding artifacts..."
+          
+          # Extract inputs from provenance
+          if [ ! -f "$PROVENANCE" ]; then
+            echo "⚠️  Cannot rebuild - no provenance file"
+            exit 0
+          fi
+          
+          # Create output directory
+          mkdir -p /tmp/rebuild-output
+          
+          # If there's a build script, run it
+          if [ -f "tools/build.sh" ]; then
+            echo "Running build.sh..."
+            bash tools/build.sh
+          fi
+          
+          # If there's a compile script, try to rebuild examples
+          if [ -f "cli/hglc/hglc.py" ] && [ -d "$RELEASE_DIR/examples" ]; then
+            echo "Compiling HGL examples..."
+            
+            for hgl_file in "$RELEASE_DIR"/examples/*.hgl; do
+              if [ -f "$hgl_file" ]; then
+                basename=$(basename "$hgl_file" .hgl)
+                output_file="/tmp/rebuild-output/${basename}.compiled.json"
+                
+                echo "  Compiling: $hgl_file"
+                python3 cli/hglc/hglc.py compile "$hgl_file" > "$output_file" || true
+              fi
+            done
+          fi
+          
+          echo "✅ Rebuild attempt complete"
+        shell: bash
+      
+      - name: Compare output hashes
+        if: steps.check-provenance.outputs.found == 'true'
+        id: compare-hashes
+        run: |
+          cd /tmp/hgl-clean
+          
+          RELEASE_DIR="${{ steps.check-provenance.outputs.release_dir }}"
+          MANIFEST="${RELEASE_DIR}/manifests/sha256sums.txt"
+          
+          if [ ! -f "$MANIFEST" ]; then
+            echo "⚠️  No SHA256 manifest to compare against"
+            echo "match=unknown" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "🔍 Comparing rebuilt artifacts with manifest..."
+          
+          all_match=true
+          mismatch_count=0
+          
+          # Compare each rebuilt file
+          for rebuilt_file in /tmp/rebuild-output/*; do
+            if [ ! -f "$rebuilt_file" ]; then
+              continue
+            fi
+            
+            basename=$(basename "$rebuilt_file")
+            
+            # Calculate hash
+            rebuilt_hash=$(sha256sum "$rebuilt_file" | awk '{print $1}')
+            
+            # Find in manifest (looking in examples/)
+            manifest_hash=$(grep "examples/$basename" "$MANIFEST" | awk '{print $1}' || echo "")
+            
+            if [ -z "$manifest_hash" ]; then
+              echo "  ⚠️  $basename - not in manifest"
+              continue
+            fi
+            
+            if [ "$rebuilt_hash" = "$manifest_hash" ]; then
+              echo "  ✅ $basename - MATCH"
+            else
+              echo "  ❌ $basename - MISMATCH"
+              echo "     Manifest:  $manifest_hash"
+              echo "     Rebuilt:   $rebuilt_hash"
+              all_match=false
+              mismatch_count=$((mismatch_count + 1))
+            fi
+          done
+          
+          if $all_match; then
+            echo ""
+            echo "✅ All rebuilt artifacts match manifest"
+            echo "match=true" >> $GITHUB_OUTPUT
+          else
+            echo ""
+            echo "❌ $mismatch_count artifact(s) did not match"
+            echo "match=false" >> $GITHUB_OUTPUT
+            echo "mismatch_count=$mismatch_count" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+      
+      - name: Check for nondeterministic elements
+        if: steps.check-provenance.outputs.found == 'true'
+        run: |
+          cd /tmp/hgl-clean
+          
+          echo "🔍 Checking for nondeterministic elements..."
+          
+          # Check for timestamps in outputs
+          if grep -r "$(date +%Y-%m-%d)" /tmp/rebuild-output/ 2>/dev/null; then
+            echo "⚠️  WARNING: Found today's date in rebuilt outputs"
+            echo "This suggests nondeterministic timestamps"
+          fi
+          
+          # Check for random UUIDs
+          if grep -rE "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}" /tmp/rebuild-output/ 2>/dev/null | grep -v "test_id"; then
+            echo "⚠️  WARNING: Found UUIDs in rebuilt outputs"
+            echo "This suggests nondeterministic IDs"
+          fi
+          
+          # Check for local timezone references
+          if grep -r "$(date +%Z)" /tmp/rebuild-output/ 2>/dev/null; then
+            echo "⚠️  WARNING: Found local timezone in rebuilt outputs"
+            echo "All timestamps should use UTC"
+          fi
+          
+          echo "✅ Nondeterminism check complete"
+        shell: bash
+      
+      - name: Generate reproducibility report
+        if: always()
+        run: |
+          cat > /tmp/reproducibility-report-${{ matrix.container.name }}.md <<EOF
+          # Reproducibility Test Report
+          
+          **Container:** ${{ matrix.container.name }}
+          **Tag:** ${{ steps.determine-tag.outputs.tag }}
+          **Date:** $(date -u +%Y-%m-%d\ %H:%M:%S\ UTC)
+          **Commit:** ${{ github.sha }}
+          
+          ## Summary
+          
+          | Metric | Value |
+          |--------|-------|
+          | Provenance Found | ${{ steps.check-provenance.outputs.found }} |
+          | Artifacts Rebuilt | $(ls /tmp/rebuild-output 2>/dev/null | wc -l) |
+          | Hash Comparison | ${{ steps.compare-hashes.outputs.match }} |
+          | Mismatches | ${{ steps.compare-hashes.outputs.mismatch_count || 0 }} |
+          
+          ## Interpretation
+          
+          EOF
+          
+          if [ "${{ steps.compare-hashes.outputs.match }}" = "true" ]; then
+            cat >> /tmp/reproducibility-report-${{ matrix.container.name }}.md <<'EOF'
+          ✅ **Build is reproducible**
+          
+          All rebuilt artifacts match the manifest hashes exactly. This confirms:
+          - No nondeterministic timestamps
+          - No random ID generation
+          - Consistent compilation process
+          - Supply chain integrity
+          EOF
+          elif [ "${{ steps.compare-hashes.outputs.match }}" = "false" ]; then
+            cat >> /tmp/reproducibility-report-${{ matrix.container.name }}.md <<'EOF'
+          ❌ **Build is not fully reproducible**
+          
+          Some rebuilt artifacts do not match manifest hashes. Potential causes:
+          - Timestamps embedded in outputs
+          - Random ID/UUID generation
+          - Dependency version drift
+          - Platform-specific formatting
+          
+          Action required: Investigate mismatches and ensure deterministic builds.
+          EOF
+          else
+            cat >> /tmp/reproducibility-report-${{ matrix.container.name }}.md <<'EOF'
+          ℹ️ **Reproducibility test incomplete**
+          
+          No provenance manifest found for this tag. This is expected for:
+          - Development branches
+          - Pre-release tags
+          - Tags created before provenance system
+          
+          Reproducibility testing will be enabled once provenance is added.
+          EOF
+          fi
+          
+          cat /tmp/reproducibility-report-${{ matrix.container.name }}.md >> $GITHUB_STEP_SUMMARY
+        shell: bash
+      
+      - name: Upload reproducibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reproducibility-report-${{ matrix.container.name }}
+          path: |
+            /tmp/reproducibility-report-*.md
+            /tmp/rebuild-output/*
+          retention-days: 90
+      
+      - name: Fail if not reproducible
+        if: steps.compare-hashes.outputs.match == 'false'
+        run: |
+          echo "❌ Reproducibility test failed"
+          echo ""
+          echo "The build is not reproducible. This is a critical issue for supply chain security."
+          echo "Review the logs above to identify sources of nondeterminism."
+          exit 1
+        shell: bash
