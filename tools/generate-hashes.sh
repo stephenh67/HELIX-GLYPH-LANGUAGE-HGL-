@@ -218,7 +218,9 @@ if [[ "$SIGN" == true ]]; then
     
     SIG_FILE="${OUTPUT_FILE}.sig"
     
-    if ssh-keygen -Y sign -f "$SSH_KEY" -n file "$OUTPUT_FILE" > "$SIG_FILE" 2>/dev/null; then
+    rm -f "$SIG_FILE"
+    rm -f "$SIG_FILE"
+    if ssh-keygen -Y sign -f "$SSH_KEY" -n file "$OUTPUT_FILE" 2>/dev/null; then
         log_success "Signature saved to: $SIG_FILE"
         
         # Display key fingerprint
