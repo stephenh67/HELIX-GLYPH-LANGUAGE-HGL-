@@ -1,0 +1,293 @@
+name: Verify Signatures
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  verify-signatures:
+    name: ED25519 Signature Verification
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Check for signature files
+        id: check-sigs
+        run: |
+          signatures=$(find releases -name "*.sig" -type f 2>/dev/null || echo "")
+          if [ -z "$signatures" ]; then
+            echo "No signature files found - this is expected for early commits"
+            echo "found=false" >> $GITHUB_OUTPUT
+          else
+            echo "found=true" >> $GITHUB_OUTPUT
+            echo "count=$(echo "$signatures" | wc -l)" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Verify ssh-keygen availability
+        if: steps.check-sigs.outputs.found == 'true'
+        run: |
+          if ! command -v ssh-keygen &> /dev/null; then
+            echo "❌ ssh-keygen not found"
+            exit 1
+          fi
+          
+          echo "✅ ssh-keygen available"
+          ssh-keygen -V 2>&1 | head -n 1 || true
+      
+      - name: Create test allowed_signers file
+        if: steps.check-sigs.outputs.found == 'true'
+        run: |
+          mkdir -p /tmp/ssh
+          
+          # Check if repo has an allowed_signers fixture
+          if [ -f "test/fixtures/allowed_signers" ]; then
+            echo "Using repository allowed_signers fixture"
+            cp test/fixtures/allowed_signers /tmp/ssh/allowed_signers
+          elif [ -f ".github/allowed_signers" ]; then
+            echo "Using .github/allowed_signers"
+            cp .github/allowed_signers /tmp/ssh/allowed_signers
+          else
+            echo "⚠️  No allowed_signers file found"
+            echo "Creating placeholder - signatures will fail until real keys are added"
+            cat > /tmp/ssh/allowed_signers <<'EOF'
+          # HGL Allowed Signers
+          # Format: identity <key-type> <public-key>
+          #
+          # Example:
+          # ledger-root ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA...
+          
+          EOF
+          fi
+          
+          echo "📄 Allowed signers content:"
+          cat /tmp/ssh/allowed_signers
+      
+      - name: Verify ED25519 signatures
+        if: steps.check-sigs.outputs.found == 'true'
+        run: |
+          echo "🔐 Verifying ED25519 signatures..."
+          
+          exit_code=0
+          namespace="ttd-ledger-root-v0.1"
+          
+          for release_dir in releases/*/; do
+            manifest="${release_dir}manifests/sha256sums.txt"
+            signature="${release_dir}manifests/sha256sums.txt.sig"
+            
+            if [ ! -f "$signature" ]; then
+              echo "⚠️  No signature in $release_dir - skipping"
+              continue
+            fi
+            
+            if [ ! -f "$manifest" ]; then
+              echo "❌ Signature exists but manifest missing: $release_dir"
+              exit_code=1
+              continue
+            fi
+            
+            echo ""
+            echo "📦 Verifying: $release_dir"
+            echo "  Manifest: $manifest"
+            echo "  Signature: $signature"
+            
+            # Try to extract identity from provenance
+            provenance="${release_dir}manifests/provenance.json"
+            if [ -f "$provenance" ] && command -v jq &> /dev/null; then
+              identity=$(jq -r '.signer.identity // "ledger-root"' "$provenance")
+            else
+              identity="ledger-root"
+            fi
+            
+            echo "  Identity: $identity"
+            echo "  Namespace: $namespace"
+            
+            # Verify signature
+            if ssh-keygen -Y verify \
+                -f /tmp/ssh/allowed_signers \
+                -I "$identity" \
+                -n "$namespace" \
+                -s "$signature" \
+                < "$manifest" 2>&1; then
+              echo "  ✅ Signature valid"
+            else
+              echo "  ❌ Signature verification FAILED"
+              echo ""
+              echo "  This could mean:"
+              echo "  - The allowed_signers file doesn't contain the correct public key"
+              echo "  - The signature was created with a different key"
+              echo "  - The manifest has been modified after signing"
+              echo "  - The identity or namespace doesn't match"
+              
+              exit_code=1
+            fi
+          done
+          
+          if [ $exit_code -eq 0 ]; then
+            echo ""
+            echo "✅ All signatures verified successfully"
+          else
+            echo ""
+            echo "❌ Signature verification failed"
+            echo ""
+            echo "To fix this:"
+            echo "1. Ensure the signer's public key is in allowed_signers"
+            echo "2. Re-sign manifests with: ssh-keygen -Y sign -f <private-key> -n $namespace"
+            echo "3. Commit both the manifest and .sig file"
+          fi
+          
+          exit $exit_code
+      
+      - name: Verify signature format
+        if: steps.check-sigs.outputs.found == 'true'
+        run: |
+          echo "🔍 Checking signature file format..."
+          
+          exit_code=0
+          for sig_file in $(find releases -name "*.sig" -type f); do
+            echo ""
+            echo "📄 Checking: $sig_file"
+            
+            # SSH signature format check
+            if head -n 1 "$sig_file" | grep -q "^-----BEGIN SSH SIGNATURE-----"; then
+              echo "  ✓ Valid SSH signature format"
+              
+              # Count lines
+              line_count=$(wc -l < "$sig_file")
+              if [ $line_count -lt 3 ]; then
+                echo "  ⚠️  Signature seems truncated (only $line_count lines)"
+                exit_code=1
+              fi
+            else
+              echo "  ✗ Invalid signature format (not SSH signature)"
+              echo "  First line: $(head -n 1 "$sig_file")"
+              exit_code=1
+            fi
+            
+            # Check for corresponding manifest
+            manifest_file="${sig_file%.sig}"
+            if [ ! -f "$manifest_file" ]; then
+              echo "  ✗ Orphaned signature (no corresponding manifest: $manifest_file)"
+              exit_code=1
+            else
+              echo "  ✓ Corresponding manifest exists"
+            fi
+          done
+          
+          exit $exit_code
+      
+      - name: Check signature coverage
+        if: steps.check-sigs.outputs.found == 'true'
+        run: |
+          echo "📊 Checking signature coverage..."
+          
+          exit_code=0
+          for release_dir in releases/*/; do
+            manifest="${release_dir}manifests/sha256sums.txt"
+            signature="${release_dir}manifests/sha256sums.txt.sig"
+            
+            if [ -f "$manifest" ] && [ ! -f "$signature" ]; then
+              echo "❌ Missing signature for: $manifest"
+              exit_code=1
+            elif [ -f "$manifest" ] && [ -f "$signature" ]; then
+              echo "✅ Signed: $release_dir"
+            fi
+          done
+          
+          if [ $exit_code -ne 0 ]; then
+            echo ""
+            echo "❌ Not all manifests are signed"
+            echo ""
+            echo "To sign a manifest:"
+            echo "  ssh-keygen -Y sign -f ~/.ssh/id_ed25519 -n ttd-ledger-root-v0.1 < sha256sums.txt > sha256sums.txt.sig"
+          fi
+          
+          exit $exit_code
+      
+      - name: Verify dual signing (if present)
+        if: steps.check-sigs.outputs.found == 'true'
+        run: |
+          echo "🔐🔐 Checking for dual-signing (Essence + PQC-Ed25519)..."
+          
+          # Look for PQC signatures
+          pqc_sigs=$(find releases -name "*.pqc.sig" -type f 2>/dev/null || echo "")
+          
+          if [ -z "$pqc_sigs" ]; then
+            echo "ℹ️  No PQC signatures found (optional for v1.2-beta)"
+          else
+            echo "✅ Found PQC signatures:"
+            echo "$pqc_sigs"
+            
+            # Verify pairing
+            for pqc_sig in $pqc_sigs; do
+              base_file="${pqc_sig%.pqc.sig}"
+              essence_sig="${base_file}.sig"
+              
+              if [ -f "$essence_sig" ]; then
+                echo "  ✅ Dual-signed: $base_file"
+              else
+                echo "  ⚠️  PQC signature without Essence pair: $pqc_sig"
+              fi
+            done
+          fi
+      
+      - name: Generate signature report
+        if: always() && steps.check-sigs.outputs.found == 'true'
+        run: |
+          echo "# Signature Verification Report" > /tmp/signature-report.md
+          echo "" >> /tmp/signature-report.md
+          echo "**Date:** $(date -u +%Y-%m-%d\ %H:%M:%S\ UTC)" >> /tmp/signature-report.md
+          echo "**Commit:** ${{ github.sha }}" >> /tmp/signature-report.md
+          echo "" >> /tmp/signature-report.md
+          
+          echo "## Signed Releases" >> /tmp/signature-report.md
+          echo "" >> /tmp/signature-report.md
+          
+          for release_dir in releases/*/; do
+            release_name=$(basename "$release_dir")
+            manifest="${release_dir}manifests/sha256sums.txt"
+            signature="${release_dir}manifests/sha256sums.txt.sig"
+            
+            if [ -f "$signature" ]; then
+              sig_size=$(stat -f%z "$signature" 2>/dev/null || stat -c%s "$signature")
+              echo "- **$release_name**: ✅ Signed ($sig_size bytes)" >> /tmp/signature-report.md
+            elif [ -f "$manifest" ]; then
+              echo "- **$release_name**: ❌ Unsigned" >> /tmp/signature-report.md
+            fi
+          done
+          
+          echo "" >> /tmp/signature-report.md
+          echo "---" >> /tmp/signature-report.md
+          echo "" >> /tmp/signature-report.md
+          echo "See job logs for detailed verification results." >> /tmp/signature-report.md
+          
+          cat /tmp/signature-report.md >> $GITHUB_STEP_SUMMARY
+      
+      - name: Upload signature report
+        if: always() && steps.check-sigs.outputs.found == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: signature-verification-report
+          path: /tmp/signature-report.md
+          retention-days: 90
+      
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Signature Verification Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.check-sigs.outputs.found }}" = "true" ]; then
+            echo "✅ Found ${{ steps.check-sigs.outputs.count }} signature file(s)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ No signature files found yet" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Signatures will be added for official releases." >> $GITHUB_STEP_SUMMARY
+          fi
