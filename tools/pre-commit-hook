@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+
+# SPDX-License-Identifier: Apache-2.0
+# HGL Pre-commit Hook
+#
+# Automatically regenerates SHA256 manifests and provenance when files change.
+# Install this hook with:
+#   cp tools/pre-commit-hook .git/hooks/pre-commit
+#   chmod +x .git/hooks/pre-commit
+
+set -euo pipefail
+
+# Colors
+COLOR_RESET='\033[0m'
+COLOR_GREEN='\033[32m'
+COLOR_YELLOW='\033[33m'
+COLOR_RED='\033[31m'
+COLOR_CYAN='\033[36m'
+
+log_info() {
+    echo -e "${COLOR_CYAN}▶ $*${COLOR_RESET}" >&2
+}
+
+log_success() {
+    echo -e "${COLOR_GREEN}✓ $*${COLOR_RESET}" >&2
+}
+
+log_warning() {
+    echo -e "${COLOR_YELLOW}⚠ $*${COLOR_RESET}" >&2
+}
+
+log_error() {
+    echo -e "${COLOR_RED}✗ $*${COLOR_RESET}" >&2
+}
+
+# Find repository root
+REPO_ROOT=$(git rev-parse --show-toplevel)
+cd "$REPO_ROOT"
+
+# Check if tools exist
+HASH_GENERATOR="$REPO_ROOT/tools/generate-hashes.sh"
+PROV_GENERATOR="$REPO_ROOT/tools/generate_provenance.py"
+
+if [[ ! -x "$HASH_GENERATOR" ]]; then
+    log_warning "Hash generator not found or not executable: $HASH_GENERATOR"
+    log_info "Skipping manifest regeneration"
+    exit 0
+fi
+
+# Find changed release directories
+CHANGED_RELEASES=()
+while IFS= read -r file; do
+    if [[ "$file" == releases/* ]]; then
+        # Extract release directory
+        release_dir=$(echo "$file" | cut -d'/' -f1-2)
+        if [[ -d "$release_dir" ]] && [[ ! " ${CHANGED_RELEASES[@]} " =~ " $release_dir " ]]; then
+            CHANGED_RELEASES+=("$release_dir")
+        fi
+    fi
+done < <(git diff --cached --name-only --diff-filter=ACMR)
+
+if [[ ${#CHANGED_RELEASES[@]} -eq 0 ]]; then
+    # No release files changed
+    exit 0
+fi
+
+log_info "Pre-commit hook: Checking ${#CHANGED_RELEASES[@]} release(s)"
+echo
+
+# Process each changed release
+REGENERATED=false
+for release_dir in "${CHANGED_RELEASES[@]}"; do
+    log_info "Processing: $release_dir"
+    
+    # Check if manifest needs regeneration
+    MANIFEST="$release_dir/SHA256SUMS.txt"
+    NEEDS_REGEN=false
+    
+    if [[ ! -f "$MANIFEST" ]]; then
+        log_warning "No manifest found - will generate"
+        NEEDS_REGEN=true
+    else
+        # Check if any release files are newer than manifest
+        while IFS= read -r file; do
+            if [[ "$file" -nt "$MANIFEST" ]]; then
+                log_info "File changed: ${file#$release_dir/}"
+                NEEDS_REGEN=true
+                break
+            fi
+        done < <(find "$release_dir" -type f ! -name "SHA256SUMS.txt*" ! -name "*.sig" ! -name "provenance.json")
+    fi
+    
+    if [[ "$NEEDS_REGEN" == false ]]; then
+        log_success "Manifest up to date"
+        continue
+    fi
+    
+    # Regenerate manifest
+    log_info "Regenerating SHA256 manifest..."
+    if "$HASH_GENERATOR" "$release_dir" --no-sort > /dev/null 2>&1; then
+        log_success "Manifest updated"
+        
+        # Stage the updated manifest
+        git add "$MANIFEST"
+        REGENERATED=true
+    else
+        log_error "Failed to regenerate manifest"
+        exit 1
+    fi
+    
+    # Regenerate provenance if generator exists
+    if [[ -x "$PROV_GENERATOR" ]]; then
+        PROVENANCE="$release_dir/provenance.json"
+        
+        # Extract version from release directory name
+        VERSION=$(basename "$release_dir" | sed 's/HGL-v//' | sed 's/^HGL-//')
+        
+        if [[ -n "$VERSION" ]]; then
+            log_info "Regenerating provenance..."
+            if python3 "$PROV_GENERATOR" \
+                --version "$VERSION" \
+                --release-dir "$release_dir" \
+                --no-policy > /dev/null 2>&1; then
+                log_success "Provenance updated"
+                
+                # Stage the updated provenance
+                git add "$PROVENANCE"
+            else
+                log_warning "Failed to regenerate provenance (non-fatal)"
+            fi
+        fi
+    fi
+    
+    echo
+done
+
+if [[ "$REGENERATED" == true ]]; then
+    log_success "Pre-commit checks complete - manifests updated"
+    log_info "Updated manifests have been staged for commit"
+else
+    log_success "Pre-commit checks complete - no changes needed"
+fi
+
+exit 0

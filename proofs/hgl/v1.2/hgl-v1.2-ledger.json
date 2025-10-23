@@ -1,0 +1,12 @@
+﻿{
+  "ledger_id": "HGL_V1.2_RELEASE",
+  "version": "1.2",
+  "namespace": "hgl-v1.2",
+  "signer": "helix@Victus",
+  "proof_path": "C:\HELIX\proofs\hgl\v1.2",
+  "manifest_sha256": "2BDF21EA0F8BB4F9C3B44C856426ECA556D73F32240BD74AAEA07D06F350AD17",
+  "signature_file": "signatures/helix.sig",
+  "verified": true,
+  "timestamp_utc": "2025-10-18T23:40:18Z",
+  "notes": "Manual verification complete on Windows 11 PowerShell. Artifacts consistent with HGL Unified Runbook v1.2."
+}

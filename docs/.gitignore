@@ -1,0 +1,5 @@
+*/__pycache__/
+*.pyc
+examples/*.compiled.json
+examples/*.sig
+examples/*.digest

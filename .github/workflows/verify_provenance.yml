@@ -1,0 +1,320 @@
+name: Verify Provenance
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  verify-provenance:
+    name: Provenance Schema & Hash Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for tag resolution
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install jsonschema pyyaml
+      
+      - name: Find provenance manifests
+        id: find-manifests
+        run: |
+          manifests=$(find releases -name "provenance.json" -type f 2>/dev/null || echo "")
+          if [ -z "$manifests" ]; then
+            echo "No provenance manifests found - this is expected for early commits"
+            echo "found=false" >> $GITHUB_OUTPUT
+          else
+            echo "found=true" >> $GITHUB_OUTPUT
+            echo "count=$(echo "$manifests" | wc -l)" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Validate provenance schema
+        if: steps.find-manifests.outputs.found == 'true'
+        run: |
+          echo "🔍 Validating provenance JSON schemas..."
+          
+          # Create minimal JSON Schema for provenance
+          cat > /tmp/provenance-schema.json <<'EOF'
+          {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "title": "HGL Provenance Manifest",
+            "type": "object",
+            "required": ["artifact", "model", "route", "build_utc", "git", "inputs", "outputs", "policy"],
+            "properties": {
+              "artifact": { "type": "string", "pattern": "^HGL v[0-9]+\\.[0-9]+.*$" },
+              "model": { "type": "string" },
+              "route": { "type": "string" },
+              "build_utc": { "type": "string", "format": "date-time" },
+              "git": {
+                "type": "object",
+                "required": ["commit", "tag"],
+                "properties": {
+                  "commit": { "type": "string", "pattern": "^[0-9a-f]{7,40}$" },
+                  "tag": { "type": "string" }
+                }
+              },
+              "inputs": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "outputs": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "policy": {
+                "type": "object",
+                "required": ["gates", "status"],
+                "properties": {
+                  "gates": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "status": { "type": "string", "enum": ["pass", "fail"] }
+                }
+              }
+            },
+            "additionalProperties": true
+          }
+          EOF
+          
+          # Validate each provenance file
+          exit_code=0
+          for manifest in $(find releases -name "provenance.json" -type f); do
+            echo ""
+            echo "📄 Validating: $manifest"
+            
+            if python3 -c "
+import json
+import jsonschema
+import sys
+
+try:
+    with open('$manifest', 'r') as f:
+        data = json.load(f)
+    with open('/tmp/provenance-schema.json', 'r') as f:
+        schema = json.load(f)
+    
+    jsonschema.validate(instance=data, schema=schema)
+    print('✓ Schema validation passed')
+    sys.exit(0)
+except jsonschema.ValidationError as e:
+    print(f'✗ Schema validation failed: {e.message}')
+    sys.exit(1)
+except Exception as e:
+    print(f'✗ Error: {e}')
+    sys.exit(1)
+            "; then
+              echo "  ✓ $manifest valid"
+            else
+              echo "  ✗ $manifest INVALID"
+              exit_code=1
+            fi
+          done
+          
+          exit $exit_code
+      
+      - name: Verify SHA256 manifest integrity
+        if: steps.find-manifests.outputs.found == 'true'
+        run: |
+          echo "🔐 Verifying SHA256 manifests..."
+          
+          exit_code=0
+          for release_dir in releases/*/; do
+            manifest_file="${release_dir}manifests/sha256sums.txt"
+            
+            if [ ! -f "$manifest_file" ]; then
+              echo "⚠️  No SHA256 manifest in $release_dir - skipping"
+              continue
+            fi
+            
+            echo ""
+            echo "📦 Checking: $release_dir"
+            
+            # Change to release directory for relative path resolution
+            pushd "$release_dir" > /dev/null
+            
+            # Verify each hash
+            while IFS= read -r line; do
+              # Skip empty lines and comments
+              [[ -z "$line" || "$line" =~ ^# ]] && continue
+              
+              expected_hash=$(echo "$line" | awk '{print $1}')
+              file_path=$(echo "$line" | awk '{$1=""; print $0}' | xargs)
+              
+              if [ ! -f "$file_path" ]; then
+                echo "  ✗ Missing file: $file_path"
+                exit_code=1
+                continue
+              fi
+              
+              actual_hash=$(sha256sum "$file_path" | awk '{print $1}')
+              
+              if [ "$expected_hash" = "$actual_hash" ]; then
+                echo "  ✓ $file_path"
+              else
+                echo "  ✗ $file_path (HASH MISMATCH)"
+                echo "    Expected: $expected_hash"
+                echo "    Actual:   $actual_hash"
+                exit_code=1
+              fi
+            done < "manifests/sha256sums.txt"
+            
+            popd > /dev/null
+          done
+          
+          if [ $exit_code -eq 0 ]; then
+            echo ""
+            echo "✅ All SHA256 hashes verified successfully"
+          else
+            echo ""
+            echo "❌ SHA256 verification failed"
+          fi
+          
+          exit $exit_code
+      
+      - name: Check for SHA256 drift in working tree
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "🔍 Checking for uncommitted SHA256 changes..."
+          
+          # Generate SHA256 for tracked files
+          git ls-files releases/ | while read file; do
+            if [ -f "$file" ] && [[ ! "$file" =~ sha256sums.txt ]] && [[ ! "$file" =~ .sig$ ]]; then
+              sha256sum "$file"
+            fi
+          done | sort -k 2 > /tmp/current-hashes.txt
+          
+          # Compare with committed manifests
+          exit_code=0
+          for manifest in $(find releases -name "sha256sums.txt" -type f); do
+            release_dir=$(dirname "$manifest" | sed 's|/manifests||')
+            
+            # Extract relevant hashes from current tree
+            grep "^$release_dir/" /tmp/current-hashes.txt 2>/dev/null | \
+              sed "s|^$release_dir/||" | \
+              sort -k 2 > /tmp/current-release-hashes.txt
+            
+            # Extract hashes from manifest (relative paths)
+            cat "$manifest" | grep -v "^#" | sort -k 2 > /tmp/manifest-hashes.txt
+            
+            # Compare
+            if ! diff -u /tmp/manifest-hashes.txt /tmp/current-release-hashes.txt > /tmp/hash-diff.txt; then
+              echo "⚠️  Hash drift detected in $release_dir:"
+              cat /tmp/hash-diff.txt
+              exit_code=1
+            fi
+          done
+          
+          if [ $exit_code -eq 0 ]; then
+            echo "✅ No hash drift detected"
+          else
+            echo ""
+            echo "❌ Hash drift detected - please regenerate SHA256 manifests"
+            echo "Run: ./tools/generate-hashes.sh"
+          fi
+          
+          exit $exit_code
+      
+      - name: Validate provenance completeness
+        if: steps.find-manifests.outputs.found == 'true'
+        run: |
+          echo "📋 Checking provenance completeness..."
+          
+          exit_code=0
+          for release_dir in releases/*/; do
+            provenance="${release_dir}manifests/provenance.json"
+            
+            if [ ! -f "$provenance" ]; then
+              echo "⚠️  No provenance in $release_dir - skipping"
+              continue
+            fi
+            
+            echo ""
+            echo "📦 Checking: $release_dir"
+            
+            # Check all input files exist
+            inputs=$(python3 -c "
+import json
+with open('$provenance', 'r') as f:
+    data = json.load(f)
+    for inp in data.get('inputs', []):
+        print(inp)
+            ")
+            
+            for inp in $inputs; do
+              full_path="${release_dir}${inp}"
+              if [ -f "$full_path" ]; then
+                echo "  ✓ Input exists: $inp"
+              else
+                echo "  ✗ Missing input: $inp"
+                exit_code=1
+              fi
+            done
+            
+            # Check all output files exist
+            outputs=$(python3 -c "
+import json
+with open('$provenance', 'r') as f:
+    data = json.load(f)
+    for out in data.get('outputs', []):
+        print(out)
+            ")
+            
+            for out in $outputs; do
+              full_path="${release_dir}${out}"
+              if [ -f "$full_path" ]; then
+                echo "  ✓ Output exists: $out"
+              else
+                echo "  ✗ Missing output: $out"
+                exit_code=1
+              fi
+            done
+          done
+          
+          if [ $exit_code -eq 0 ]; then
+            echo ""
+            echo "✅ All provenance files are complete"
+          else
+            echo ""
+            echo "❌ Provenance completeness check failed"
+          fi
+          
+          exit $exit_code
+      
+      - name: Upload provenance artifacts
+        if: always() && steps.find-manifests.outputs.found == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: provenance-validation-report
+          path: |
+            releases/*/manifests/provenance.json
+            releases/*/manifests/sha256sums.txt
+          retention-days: 90
+      
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Provenance Verification Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.find-manifests.outputs.found }}" = "true" ]; then
+            echo "✅ Found ${{ steps.find-manifests.outputs.count }} provenance manifest(s)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "All provenance checks completed. See job logs for details." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ No provenance manifests found yet" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "This is expected for early development. Provenance will be added for releases." >> $GITHUB_STEP_SUMMARY
+          fi

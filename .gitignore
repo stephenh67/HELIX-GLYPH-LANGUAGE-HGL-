@@ -1,0 +1,7 @@
+examples/*.compiled.json
+examples/*.sig
+examples/*.digest
+examples/events.sample.jsonl
+**/__pycache__/
+.cli-venv/
+.venv
